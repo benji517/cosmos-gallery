@@ -29,6 +29,15 @@
   z-index: 9;
   font-size: 13px;
 }
+  /* Force hint reposition for iOS PWAs with orientation lock on */
+  @media screen and (orientation: landscape) {
+    #hint {
+      transform: translateX(-50%) rotate(-90deg);
+      transform-origin: top center;
+      top: 50%;
+      left: calc(env(safe-area-inset-left, 0px) + 8px);
+  }
+}
 
 </style>
 </head>
