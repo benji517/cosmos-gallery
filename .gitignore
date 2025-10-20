@@ -1,0 +1,33 @@
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Node / npm stuff
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# VS Code / PlatformIO / IDE configs
+.vscode/
+.idea/
+*.code-workspace
+
+# Temporary / backup files
+*.tmp
+*.bak
+*.swp
+*~
+
+# Python HTTP server cache files
+__pycache__/
+*.pyc
+
+# GitHub Pages cache
+_site/
+
+# OS junk from archives
+Thumbs.db
+ehthumbs.db
+Desktop.ini
