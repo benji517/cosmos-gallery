@@ -17,21 +17,17 @@
   }
   .small {font-size:13px; opacity:.85; margin-top:8px}
   .hidden{display:none}
-  #hint{
-  position:fixed; left:50%;
-  transform:translateX(-50%);
-  color:#fff; background:rgba(0,0,0,.5);
-  padding:6px 10px; border-radius:10px; z-index:9; font-size:13px;
-}
-
-/* Portrait layout */
-body:not(.landscape) #hint{
-  top: calc(env(safe-area-inset-top, 0px) + 8px);
-}
-
-/* Landscape layout */
-body.landscape #hint{
-  top: 8px;
+  #hint {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 8px); /* keeps it below the notch */
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 6px 10px;
+  border-radius: 10px;
+  z-index: 9;
+  font-size: 13px;
 }
 
 </style>
