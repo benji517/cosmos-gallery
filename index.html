@@ -17,42 +17,23 @@
   }
   .small {font-size:13px; opacity:.85; margin-top:8px}
   .hidden{display:none}
-  #hint {
-  position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 8px); /* keeps it below the notch */
-  left: 50%;
-  transform: translateX(-50%);
-  color: #fff;
-  background: rgba(0, 0, 0, 0.5);
-  padding: 6px 10px;
-  border-radius: 10px;
-  z-index: 9;
-  font-size: 13px;
-}
-  /* Force hint reposition for iOS PWAs with orientation lock on */
-  @media screen and (orientation: landscape) {
-    #hint {
-      transform: translateX(-50%) rotate(-90deg);
-      transform-origin: top center;
-      top: 50%;
-      left: calc(env(safe-area-inset-left, 0px) + 8px);
-  }
-}
-
 </style>
 </head>
 <body>
-<div id="hint">Controls: W = proceed • S = back • A/D = steer • Tap once to focus on iPhone</div>
 
 <!-- MENU UI -->
 <div id="menu" class="ui">
   <h2 style="margin:.2rem 0 0.6rem">Cluster Walk</h2>
   <p style="margin:.2rem 0 .8rem; opacity:.9">A single idea cluster in a vast cosmos. Walk the path, discover connections.</p>
+  <p class="small" style="margin-top:0.6rem; opacity:0.85;">
+  Controls: <b>W</b> = proceed • <b>S</b> = back • <b>A/D</b> = steer
+</p>
+
   <div style="text-align:left; margin:.6rem auto 0; line-height:1.6">
     <div>• <b>Press W</b> — Visit existing cluster</div>
     <div>• <b>Press S</b> — Create new cluster (placeholder)</div>
   </div>
-  <div class="small">Use your BLE controller (foil pads) or keyboard.</div>
+  <div class="small">Use the foil pads or keyboard.</div>
 </div>
 
 <!-- PLACEHOLDER UI FOR "CREATE NEW CLUSTER" -->
