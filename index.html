@@ -192,6 +192,7 @@ function buildNodes() {
     node.setAttribute('position', `${px.toFixed(2)} ${py.toFixed(2)} ${pz.toFixed(2)}`);
 
     const dot = document.createElement('a-sphere');
+    dot.classList.add('dot');
     dot.setAttribute('radius', artIdx.has(i)? 0.13 : 0.08);
     dot.setAttribute('material', `color:#8cf; emissive:#8cf; emissiveIntensity:${artIdx.has(i)?'0.85':'0.55'}; opacity:${artIdx.has(i)?'0.95':'0.8'}; transparent:true`);
     node.appendChild(dot);
@@ -238,22 +239,45 @@ function assignArtImages() {
 AFRAME.registerComponent('art-revealer', {
   init() {
     this.cam = document.getElementById('cam');
-    this.arts = Array.from(document.querySelectorAll('#nodes .art'));
+
+    // collect pairs: { plane, dot }
+    const nodes = Array.from(document.querySelectorAll('#nodes a-entity'));
+    this.pairs = nodes.map(n => ({
+      plane: n.querySelector('.art'),
+      dot:   n.querySelector('.dot')
+    })).filter(p => p.plane && p.dot);
+
     this._camWorld = new THREE.Vector3();
     this._artWorld = new THREE.Vector3();
   },
   tick() {
     if (!this.cam) return;
     this.cam.object3D.getWorldPosition(this._camWorld);
-    this.arts.forEach(p=>{
-      p.object3D.getWorldPosition(this._artWorld);
+
+    this.pairs.forEach(({plane, dot})=>{
+      plane.object3D.getWorldPosition(this._artWorld);
       const d = this._camWorld.distanceTo(this._artWorld);
+
+      // image fade-in 
       const t = Math.min(1, Math.max(0, 1 - (d/ART_REVEAL_DIST)));
-      const opacity = 0.05 + t*0.95;
-      p.setAttribute('material', `color:#fff; opacity:${opacity}; transparent:true`);
+      const imgOpacity = 0.05 + t*0.95;
+      plane.setAttribute('material', `shader: flat; src: ${plane.getAttribute('material').src}; opacity:${imgOpacity}; transparent:true; side: double`);
+
+      // dot fade-out (or hide)
+      const dotFade = Math.max(0, 1 - t*1.4); // fade a bit faster than image
+      if (t > 0.65) {
+        dot.setAttribute('visible', false);   // snap-hide when image is readable
+      } else {
+        dot.setAttribute('visible', true);
+        // keep material opacity smooth while it’s still visible
+        const m = dot.getAttribute('material') || {};
+        const baseOpacity = (typeof m.opacity === 'number') ? m.opacity : 0.9;
+        dot.setAttribute('material', `color:#8cf; emissive:#8cf; emissiveIntensity:${m.emissiveIntensity||0.85}; opacity:${(baseOpacity*dotFade).toFixed(2)}; transparent:true`);
+      }
     });
   }
 });
+
 
 /* ---------- Final node ---------- */
 function buildFinalNode(anchor){
