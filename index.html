@@ -209,6 +209,31 @@ function buildNodes() {
   }
 }
 
+// Map image files to the art planes
+function assignArtImages() {
+  const files = [
+    "assets/image01.jpeg",
+    "assets/image02.jpeg",
+    "assets/image03.jpeg",
+    "assets/image04.jpeg",
+    "assets/image05.jpeg",
+    "assets/image06.jpeg",
+    "assets/image07.jpeg", 
+    "assets/image08.jpeg"  
+  ];
+
+  // pick the first 4 for now
+  const chosen = files.slice(0, 4);
+
+  const planes = Array.from(document.querySelectorAll('#nodes .art'));
+  planes.forEach((p, i) => {
+    const src = chosen[i % chosen.length];
+    // use flat shader so lighting doesn't wash the image; keep opacity 0 for reveal component
+    p.setAttribute('material', `shader: flat; src: ${src}; opacity: 0; transparent: true; side: double`);
+  });
+}
+
+
 /* ---------- Reveal-on-approach ---------- */
 AFRAME.registerComponent('art-revealer', {
   init() {
@@ -328,6 +353,7 @@ function startExplore(){
   if (!built){
     const last = buildSCurve();
     buildNodes();
+    assignArtImages();
     buildFinalNode(last);
     document.querySelector('a-scene').setAttribute('art-revealer','');
     built = true;
