@@ -112,6 +112,8 @@ document.addEventListener('touchend', () => {
 const TOTAL_NODES = 12;
 const RADIUS = 6;
 const ART_REVEAL_DIST = 2.2;
+const DOT_HIDE_T = 0.45;   // hide the dot once the image is ~45% revealed
+const ART_OPAQUE_T = 0.80; // from 80% revealed, make the image fully opaque
 
 const nodesEl = document.getElementById('nodes');
 const pathEl  = document.getElementById('path');
@@ -258,25 +260,35 @@ AFRAME.registerComponent('art-revealer', {
       plane.object3D.getWorldPosition(this._artWorld);
       const d = this._camWorld.distanceTo(this._artWorld);
 
-      // image fade-in 
-      const t = Math.min(1, Math.max(0, 1 - (d/ART_REVEAL_DIST)));
-      const imgOpacity = 0.05 + t*0.95;
-      plane.setAttribute('material', `shader: flat; src: ${plane.getAttribute('material').src}; opacity:${imgOpacity}; transparent:true; side: double`);
+      // progress 0 to 1 as user approaches
+      const t = Math.min(1, Math.max(0, 1 - (d / ART_REVEAL_DIST)));
 
-      // dot fade-out (or hide)
-      const dotFade = Math.max(0, 1 - t*1.4); // fade a bit faster than image
-      if (t > 0.65) {
-        dot.setAttribute('visible', false);   // snap-hide when image is readable
+      // image opacity: fade in, then snap to fully opaque a bit early
+      let imgOpacity = 0.05 + t * 0.95;
+      let transparent = true;
+      if (t >= ART_OPAQUE_T) { imgOpacity = 1; transparent = false; }
+
+      const mat = plane.getAttribute('material') || {};
+      const src = mat.src || plane.getAttribute('material').src; // keep current src
+      plane.setAttribute('material',
+        `shader: flat; src: ${src}; opacity:${imgOpacity}; transparent:${transparent}; side: double`
+      );
+
+      // dot: start fading early, then hide completely once t passes threshold
+      if (t > DOT_HIDE_T) {
+        dot.setAttribute('visible', false);
       } else {
         dot.setAttribute('visible', true);
-        // keep material opacity smooth while it’s still visible
-        const m = dot.getAttribute('material') || {};
-        const baseOpacity = (typeof m.opacity === 'number') ? m.opacity : 0.9;
-        dot.setAttribute('material', `color:#8cf; emissive:#8cf; emissiveIntensity:${m.emissiveIntensity||0.85}; opacity:${(baseOpacity*dotFade).toFixed(2)}; transparent:true`);
+        const baseEm = (dot.getAttribute('material')?.emissiveIntensity) ?? 0.85;
+        const fade = Math.max(0, 1 - (t / DOT_HIDE_T)); // 1→0 as t approaches threshold
+        dot.setAttribute('material',
+          `color:#8cf; emissive:#8cf; emissiveIntensity:${baseEm}; opacity:${(0.9*fade).toFixed(2)}; transparent:true`
+        );
       }
     });
   }
 });
+
 
 
 /* ---------- Final node ---------- */
