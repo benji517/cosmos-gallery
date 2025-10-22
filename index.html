@@ -114,6 +114,7 @@ const RADIUS = 6;
 const ART_REVEAL_DIST = 2.2;
 const DOT_HIDE_T = 0.25;   // hide the dot once the image is ~25% revealed
 const ART_OPAQUE_T = 0.65; // from 65% revealed, make the image fully opaque
+const ERASE_DIST = 3.0;
 
 const nodesEl = document.getElementById('nodes');
 const pathEl  = document.getElementById('path');
@@ -179,48 +180,60 @@ function buildSCurve() {
 }
 
 /* ---------- Nodes ---------- */
-function buildNodes() {
+// Builds all node positions + visual representations in the cluster
+function buildNodes() {a
+  // approximate center of the cluster
   const center = {x:1.2, y:1.2, z:-1.2};
+
+  // which node indices will be “art nodes” (have image planes)
   const artIdx = new Set([2,5,8,11]);
 
-  //store positions of nodes we’ve already placed
+  // list to keep track of all placed node positions (for spacing)
   const placed = [];
 
-  //minimum spacing between any two nodes
+  // minimum allowed distance between any two nodesa
   const MIN_DIST = 1.4;
 
+  // create 12 total nodes (some are art nodes, others just dots)
   for (let i = 0; i < 12; i++) {
     let px, py, pz;
     let tries = 0;
 
-    // ADDED: keep sampling random positions until spacing is OK (or we give up)
+    // keep picking random positions until spacing looks good
     while (true) {
+      // random radius offset
       const rr = RADIUS * (0.4 + Math.random() * 0.6);
+      // random horizontal angle
       const ang = Math.random() * Math.PI * 2;
+      // random small height offset
       const h   = (Math.random() * 1.2) - 0.6;
 
+      // calculate new coordinates based on polar math + some jitter
       px = center.x + Math.cos(ang) * rr * 0.4 + (Math.random() * 1.2 - 0.6);
       py = 1.2 + h;
       pz = center.z + Math.sin(ang) * rr * 0.7 + (Math.random() * 1.2 - 0.6);
 
-      //spacing check against all previously placed nodes
+      // check distance against every previously placed node
       const ok = placed.every(p => {
         const dx = p.x - px, dy = p.y - py, dz = p.z - pz;
+        // Euclidean distance formula
         return Math.sqrt(dx*dx + dy*dy + dz*dz) >= MIN_DIST;
       });
 
-      //break if good, or after N attempts to avoid infinite loops
+      // stop once spacing is OK or after 25 attempts
       if (ok || tries++ > 25) break;
     }
 
-    //remember this node’s position for the next checks
+    // store this new node’s position for later spacing checks
     placed.push({ x: px, y: py, z: pz });
 
+    // create the node container entity
     const node = document.createElement('a-entity');
     node.setAttribute('position', `${px.toFixed(2)} ${py.toFixed(2)} ${pz.toFixed(2)}`);
 
+    // add the glowing blue sphere (the visual “node”)
     const dot = document.createElement('a-sphere');
-    dot.classList.add('dot');
+    dot.classList.add('dot'); // gives us a handle to hide it later
     dot.setAttribute('radius', artIdx.has(i) ? 0.13 : 0.08);
     dot.setAttribute(
       'material',
@@ -228,27 +241,24 @@ function buildNodes() {
     );
     node.appendChild(dot);
 
-    // UNCHANGED (mostly): create an art plane when this index is an art node
+    // if this node is an art node, attach an image plane slightly in front
     if (artIdx.has(i)) {
       const plane = document.createElement('a-plane');
-      plane.setAttribute('width', '1.0');
-      plane.setAttribute('height','1.4');
-
-      // bigger = more forward
-      plane.setAttribute('position', '0 0 0.22');
-
-      plane.setAttribute('rotation','0 0 0');
-
-      // Keep flat shader + transparent start; image src is assigned later in assignArtImages()
+      plane.setAttribute('width', '1.0');      // image width
+      plane.setAttribute('height','1.4');      // image height
+      plane.setAttribute('position', '0 0 0.22'); // shift forward so it sits in front of the dot
+      plane.setAttribute('rotation','0 0 0');     // face forward
+      // start invisible; the art-revealer component fades this in
       plane.setAttribute('material','shader: flat; color:#ffffff; opacity:0; transparent:true; side: double');
-
-      plane.classList.add('art'); // used by the reveal component
+      plane.classList.add('art'); // used by art-revealer + eraser logic
       node.appendChild(plane);
     }
 
+    // finally add this node to the global node container
     nodesEl.appendChild(node);
   }
 }
+
 
 
 // Map image files to the art planes
