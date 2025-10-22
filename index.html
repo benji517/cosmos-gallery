@@ -58,7 +58,7 @@
   <a-entity id="stars"></a-entity>
 
   <!-- Camera rig -->
-  <a-entity id="rig" position="0 1.6 6">
+  <a-entity id="rig" position="0 1.45 6">
     <a-entity id="cam"
       camera
       look-controls="pointerLockEnabled: false; touchEnabled: true; magicWindowTrackingEnabled: true"
@@ -112,8 +112,8 @@ document.addEventListener('touchend', () => {
 const TOTAL_NODES = 12;
 const RADIUS = 6;
 const ART_REVEAL_DIST = 2.2;
-const DOT_HIDE_T = 0.45;   // hide the dot once the image is ~45% revealed
-const ART_OPAQUE_T = 0.80; // from 80% revealed, make the image fully opaque
+const DOT_HIDE_T = 0.25;   // hide the dot once the image is ~25% revealed
+const ART_OPAQUE_T = 0.65; // from 65% revealed, make the image fully opaque
 
 const nodesEl = document.getElementById('nodes');
 const pathEl  = document.getElementById('path');
@@ -182,35 +182,74 @@ function buildSCurve() {
 function buildNodes() {
   const center = {x:1.2, y:1.2, z:-1.2};
   const artIdx = new Set([2,5,8,11]);
-  for (let i=0;i<12;i++){
-    const rr = RADIUS*(0.4 + Math.random()*0.6);
-    const ang = Math.random()*Math.PI*2;
-    const h = (Math.random()*1.2) - 0.6;
-    const px = center.x + Math.cos(ang)*rr*0.4 + (Math.random()*1.2-0.6);
-    const py = 1.2 + h;
-    const pz = center.z + Math.sin(ang)*rr*0.7 + (Math.random()*1.2-0.6);
+
+  //store positions of nodes we’ve already placed
+  const placed = [];
+
+  //minimum spacing between any two nodes
+  const MIN_DIST = 1.4;
+
+  for (let i = 0; i < 12; i++) {
+    let px, py, pz;
+    let tries = 0;
+
+    // ADDED: keep sampling random positions until spacing is OK (or we give up)
+    while (true) {
+      const rr = RADIUS * (0.4 + Math.random() * 0.6);
+      const ang = Math.random() * Math.PI * 2;
+      const h   = (Math.random() * 1.2) - 0.6;
+
+      px = center.x + Math.cos(ang) * rr * 0.4 + (Math.random() * 1.2 - 0.6);
+      py = 1.2 + h;
+      pz = center.z + Math.sin(ang) * rr * 0.7 + (Math.random() * 1.2 - 0.6);
+
+      //spacing check against all previously placed nodes
+      const ok = placed.every(p => {
+        const dx = p.x - px, dy = p.y - py, dz = p.z - pz;
+        return Math.sqrt(dx*dx + dy*dy + dz*dz) >= MIN_DIST;
+      });
+
+      //break if good, or after N attempts to avoid infinite loops
+      if (ok || tries++ > 25) break;
+    }
+
+    //remember this node’s position for the next checks
+    placed.push({ x: px, y: py, z: pz });
 
     const node = document.createElement('a-entity');
     node.setAttribute('position', `${px.toFixed(2)} ${py.toFixed(2)} ${pz.toFixed(2)}`);
 
     const dot = document.createElement('a-sphere');
     dot.classList.add('dot');
-    dot.setAttribute('radius', artIdx.has(i)? 0.13 : 0.08);
-    dot.setAttribute('material', `color:#8cf; emissive:#8cf; emissiveIntensity:${artIdx.has(i)?'0.85':'0.55'}; opacity:${artIdx.has(i)?'0.95':'0.8'}; transparent:true`);
+    dot.setAttribute('radius', artIdx.has(i) ? 0.13 : 0.08);
+    dot.setAttribute(
+      'material',
+      `color:#8cf; emissive:#8cf; emissiveIntensity:${artIdx.has(i)?'0.85':'0.55'}; opacity:${artIdx.has(i)?'0.95':'0.8'}; transparent:true`
+    );
     node.appendChild(dot);
 
+    // UNCHANGED (mostly): create an art plane when this index is an art node
     if (artIdx.has(i)) {
       const plane = document.createElement('a-plane');
-      plane.setAttribute('width','1.0'); plane.setAttribute('height','1.4');
-      plane.setAttribute('position','0 0 -0.01');
+      plane.setAttribute('width', '1.0');
+      plane.setAttribute('height','1.4');
+
+      // bigger = more forward
+      plane.setAttribute('position', '0 0 0.22');
+
       plane.setAttribute('rotation','0 0 0');
-      plane.setAttribute('material','color:#ffffff; opacity:0; transparent:true');
-      plane.classList.add('art');
+
+      // Keep flat shader + transparent start; image src is assigned later in assignArtImages()
+      plane.setAttribute('material','shader: flat; color:#ffffff; opacity:0; transparent:true; side: double');
+
+      plane.classList.add('art'); // used by the reveal component
       node.appendChild(plane);
     }
+
     nodesEl.appendChild(node);
   }
 }
+
 
 // Map image files to the art planes
 function assignArtImages() {
@@ -235,7 +274,6 @@ function assignArtImages() {
     p.setAttribute('material', `shader: flat; src: ${src}; opacity: 0; transparent: true; side: double`);
   });
 }
-
 
 /* ---------- Reveal-on-approach ---------- */
 AFRAME.registerComponent('art-revealer', {
@@ -266,12 +304,15 @@ AFRAME.registerComponent('art-revealer', {
       // image opacity: fade in, then snap to fully opaque a bit early
       let imgOpacity = 0.05 + t * 0.95;
       let transparent = true;
-      if (t >= ART_OPAQUE_T) { imgOpacity = 1; transparent = false; }
+      let depthTest = true;
+      if (t >= ART_OPAQUE_T) { imgOpacity = 1; transparent = false; depthTest = false; }
 
+      // keep existing src
       const mat = plane.getAttribute('material') || {};
-      const src = mat.src || plane.getAttribute('material').src; // keep current src
+      const src = mat.src || plane.getAttribute('material').src;
+
       plane.setAttribute('material',
-        `shader: flat; src: ${src}; opacity:${imgOpacity}; transparent:${transparent}; side: double`
+        `shader: flat; src: ${src}; opacity:${imgOpacity}; transparent:${transparent}; side: double; depthTest:${depthTest}`
       );
 
       // dot: start fading early, then hide completely once t passes threshold
@@ -288,8 +329,6 @@ AFRAME.registerComponent('art-revealer', {
     });
   }
 });
-
-
 
 /* ---------- Final node ---------- */
 function buildFinalNode(anchor){
@@ -396,7 +435,6 @@ function startExplore(){
   }
   resetPlayer();
 }
-
 
 setState('menu');
 </script>
