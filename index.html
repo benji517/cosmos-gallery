@@ -287,6 +287,7 @@ function assignArtImages() {
       'material',
       `shader: flat; src: ${src}; opacity: 0; transparent: true; side: double`
     );
+    p.setAttribute('render-order', '10');
   });
 }
 
@@ -309,7 +310,6 @@ AFRAME.registerComponent('art-revealer', {
   tick() {
     if (!this.cam) return;
     this.cam.object3D.getWorldPosition(this._camWorld);
-
     this.pairs.forEach(({plane, dot})=>{
       plane.object3D.getWorldPosition(this._artWorld);
       const d = this._camWorld.distanceTo(this._artWorld);
@@ -321,14 +321,15 @@ AFRAME.registerComponent('art-revealer', {
       let imgOpacity = 0.05 + t * 0.95;
       let transparent = true;
       let depthTest = true;
-      if (t >= ART_OPAQUE_T) { imgOpacity = 1; transparent = false; depthTest = false; }
+      let depthWrite  = false;
+      if (t >= ART_OPAQUE_T) { imgOpacity = 1; transparent = false; depthTest = true; depthWrite = true;}
 
       // keep existing src
       const mat = plane.getAttribute('material') || {};
       const src = mat.src || plane.getAttribute('material').src;
 
       plane.setAttribute('material',
-        `shader: flat; src: ${src}; opacity:${imgOpacity}; transparent:${transparent}; side: double; depthTest:${depthTest}`
+        `shader: flat; src: ${src}; opacity:${imgOpacity}; transparent:${transparent}; side: double; depthTest:${depthTest}; depthWrite:${depthWrite}`
       );
 
       // dot: start fading early, then hide completely once t passes threshold
