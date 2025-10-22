@@ -260,9 +260,8 @@ function buildNodes() {
 }
 
 
-
-// Map image files to the art planes
 function assignArtImages() {
+  // Step 1: Create a list of all image file paths you want to use
   const files = [
     "assets/image01.jpeg",
     "assets/image02.jpeg",
@@ -274,16 +273,24 @@ function assignArtImages() {
     "assets/image08.jpeg"  
   ];
 
-  // pick the first 4 for now
+  // Step 2: Pick how many of those images to actually use
+  // since only 4 art nodes exist, take the first 4.
   const chosen = files.slice(0, 4);
 
+  // Step 3: Find all <a-plane> elements that have the 'art' class (those are the art nodes)
   const planes = Array.from(document.querySelectorAll('#nodes .art'));
+
+  // Step 4: For each art plane, assign an image from the chosen list
   planes.forEach((p, i) => {
-    const src = chosen[i % chosen.length];
-    // use flat shader so lighting doesn't wash the image; keep opacity 0 for reveal component
-    p.setAttribute('material', `shader: flat; src: ${src}; opacity: 0; transparent: true; side: double`);
+    const src = chosen[i % chosen.length]; // loops images if fewer than planes
+    // Step 5: Apply A-Frame material settings
+    p.setAttribute(
+      'material',
+      `shader: flat; src: ${src}; opacity: 0; transparent: true; side: double`
+    );
   });
 }
+
 
 /* ---------- Reveal-on-approach ---------- */
 AFRAME.registerComponent('art-revealer', {
