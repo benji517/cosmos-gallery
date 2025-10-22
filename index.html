@@ -62,7 +62,7 @@
     <a-entity id="cam"
       camera
       look-controls="pointerLockEnabled: false; touchEnabled: true; magicWindowTrackingEnabled: true"
-      wasd-controls="acceleration: 8">
+      wasd-controls="acceleration: 14">
     </a-entity>
   </a-entity>
 
@@ -111,10 +111,9 @@ document.addEventListener('touchend', () => {
 /* ---------- BUILD SCENE ---------- */
 const TOTAL_NODES = 12;
 const RADIUS = 6;
-const ART_REVEAL_DIST = 2.2;
-const DOT_HIDE_T = 0.25;   // hide the dot once the image is ~25% revealed
-const ART_OPAQUE_T = 0.65; // from 65% revealed, make the image fully opaque
-const ERASE_DIST = 3.0;
+const ART_REVEAL_DIST = 2.8;
+const DOT_HIDE_T = 0.18;   // hide the dot once the image is ~18% revealed
+const ART_OPAQUE_T = 0.50; // from 50% revealed, make the image fully opaque
 
 const nodesEl = document.getElementById('nodes');
 const pathEl  = document.getElementById('path');
@@ -250,7 +249,7 @@ function buildNodes() {
       plane.setAttribute('rotation','0 0 0');     // face forward
       // start invisible; the art-revealer component fades this in
       plane.setAttribute('material','shader: flat; color:#ffffff; opacity:0; transparent:true; side: double');
-      plane.classList.add('art'); // used by art-revealer + eraser logic
+      plane.classList.add('art');
       node.appendChild(plane);
     }
 
