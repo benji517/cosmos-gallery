@@ -27,8 +27,7 @@
   <p style="margin:.2rem 0 .8rem; opacity:.9">A single idea cluster in a vast cosmos. Walk the path, discover connections.</p>
   <p class="small" style="margin-top:0.6rem; opacity:0.85;">
   Controls: <b>W</b> = proceed • <b>S</b> = back • <b>A/D</b> = steer
-</p>
-
+  </p>
   <div style="text-align:left; margin:.6rem auto 0; line-height:1.6">
     <div>• <b>Press W</b> — Visit existing cluster</div>
     <div>• <b>Press S</b> — Create new cluster (placeholder)</div>
@@ -199,7 +198,7 @@ function buildNodes() {
 
     if (artIdx.has(i)) {
       const plane = document.createElement('a-plane');
-      plane.setAttribute('width','1.4'); plane.setAttribute('height','1.0');
+      plane.setAttribute('width','1.0'); plane.setAttribute('height','1.4');
       plane.setAttribute('position','0 0 -0.01');
       plane.setAttribute('rotation','0 0 0');
       plane.setAttribute('material','color:#ffffff; opacity:0; transparent:true');
