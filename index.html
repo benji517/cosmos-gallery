@@ -234,15 +234,22 @@ window.addEventListener('keydown', (e) => {
     if (k === 's') setState('menu');
   } else if (state === 'decision') {
   if (k === 'w') {
-    showRecommendations(); // <-- was the alert; now opens the overlay
+    if (isRecsOpen()) {
+      // Overlay is already visible → thank you + reload
+      hideRecommendationsAndRestartWithThanks();
+    } else {
+      // First W → open overlay
+      showRecommendations();
     }
+  }
   if (k === 's') {
-    hideRecommendationsAndRestart(); // smoother exit
-    }
+    // S should always be a quick exit (no overlay)
+    hideRecommendationsAndRestart(); // uses default "Leaving cluster…"
+  }
   }
 });
 
-document.getElementById('recsCloseBtn')?.addEventListener('click', hideRecommendationsAndRestart);
+document.getElementById('recsCloseBtn')?.addEventListener('click', hideRecommendationsAndRestartWithThanks);
 
 
 function unlockAudioOnce() {
@@ -740,11 +747,11 @@ function resetPlayer(){
 }
 
 // Smooth fade to black with text, then reload (centered in rotated UI)
-function fadeAndReload() {
+// Smooth fade to black with text, then reload (centered in rotated UI)
+function fadeAndReload(msg = 'Leaving cluster…') {
   const rotor = document.getElementById('ui-rotor') || document.body;
 
   const overlay = document.createElement('div');
-  // place inside rotor so it inherits the 90° rotation
   overlay.style.position = (rotor.id === 'ui-rotor') ? 'absolute' : 'fixed';
   overlay.style.left = '0';
   overlay.style.top = '0';
@@ -753,25 +760,22 @@ function fadeAndReload() {
   overlay.style.background = '#000';
   overlay.style.opacity = '0';
   overlay.style.transition = 'opacity 1.8s ease';
-  overlay.style.zIndex = '1000'; // above rotor (999)
+  overlay.style.zIndex = '1000';
   overlay.style.display = 'flex';
   overlay.style.alignItems = 'center';
   overlay.style.justifyContent = 'center';
   overlay.style.flexDirection = 'column';
 
-  // center within the rotated plane if we’re inside #ui-rotor
   if (rotor.id === 'ui-rotor') {
     overlay.style.left = '50%';
     overlay.style.top = '50%';
     overlay.style.transform = 'translate(-50%, -50%)';
-    overlay.style.width = '100%';
-    overlay.style.height = '100%';
   }
 
   rotor.appendChild(overlay);
 
   const text = document.createElement('div');
-  text.textContent = 'Leaving cluster…';
+  text.textContent = msg;
   text.style.color = '#fff';
   text.style.fontSize = '1.6rem';
   text.style.opacity = '0.92';
@@ -779,7 +783,6 @@ function fadeAndReload() {
   text.style.letterSpacing = '0.06em';
   overlay.appendChild(text);
 
-  // fade in then reload
   requestAnimationFrame(() => { overlay.style.opacity = '1'; });
   setTimeout(() => { location.reload(); }, 2200);
 }
@@ -815,6 +818,20 @@ function hideRecommendationsAndRestart() {
   // reload the scene to "move on"
   fadeAndReload();
 }
+function isRecsOpen() {
+  const panel = document.getElementById('recsOverlay');
+  return panel && !panel.classList.contains('hidden');
+}
+
+function hideRecommendationsAndRestartWithThanks() {
+  const panel = document.getElementById('recsOverlay');
+  if (panel) {
+    panel.classList.add('hidden');
+    panel.setAttribute('aria-hidden', 'true');
+  }
+  fadeAndReload('Thanks for testing! Reloading…');
+}
+
 
 /* ---------- Start ---------- */
 let built = false;
