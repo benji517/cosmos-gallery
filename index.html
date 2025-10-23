@@ -107,7 +107,17 @@
   <div class="small">This is required by iOS for audio playback.</div>
   <div style="margin-top:.8rem; opacity:.8">👆 Tap anywhere</div>
 </div>
+
+<!-- TUTORIAL: deletion hint shown once on first explore -->
+<div id="tutorialDelete" class="ui hidden" style="opacity:.95;">
+  <h3 style="margin:.3rem 0 .6rem">Deleting Artworks</h3>
+  <p style="margin:.2rem 0 .8rem; opacity:.9; line-height:1.4;">
+    Wave once to <b>arm</b> an artwork.<br/>
+    Wave again to <b>hide</b> it.
+  </p>
 </div>
+</div>
+
 
 <a-scene renderer="colorManagement:true" background="color:#01040c" fog="type: linear; color: #01040c; near: 8; far: 45" hide-artnode-on-e="requireConfirm: true; confirmWindow: 1200">
   <!-- Audio assets -->
@@ -463,6 +473,7 @@ AFRAME.registerComponent('hide-artnode-on-e', {
 
     this.armed = null; // { node, expiresAt }
     this._disarmTimer = null;
+    this._failedArms = 0; // counts arms that didn’t confirm
   },
 
   remove: function () {
@@ -496,6 +507,22 @@ AFRAME.registerComponent('hide-artnode-on-e', {
     if (snd) snd.playSound();
   },
 
+  remindUser: function () {
+  if (window._reminderShown) return;
+  const cam = this.camEl;
+  if (!cam) return;
+
+  const msg = document.createElement('a-entity');
+  msg.setAttribute('text', 'value: Wave twice to hide nearby art; color: #ccc; align: center; width: 2.5; opacity: 0.9;');
+  msg.setAttribute('position', '0 -0.3 -1.5');
+  cam.appendChild(msg);
+  msg.setAttribute('animation', 'property: text.opacity; to: 0; dur: 1800; delay: 1800; easing: linear');
+  setTimeout(() => msg.remove(), 3500);
+
+  window._reminderShown = true;
+  },
+
+
   onKeyDown: function (e) {
     if (window.state !== 'explore') return;
     var key = e.key ? e.key.toLowerCase() : '';
@@ -513,17 +540,33 @@ AFRAME.registerComponent('hide-artnode-on-e', {
     if (!this.data.requireConfirm) { this.hideNode(node, dist); return; }
 
     // Confirm path: second E within window on same node
-    if (this.armed && this.armed.node === node && now < this.armed.expiresAt) {
-      var dotC = node.querySelector('.dot');
-      var artC = node.querySelector('.art');
-      if (dotC) dotC.removeAttribute('animation__arm');
-      if (artC) artC.removeAttribute('animation__arm_plane');
+  if (this.armed && this.armed.node === node && now < this.armed.expiresAt) {
+  var dotC = node.querySelector('.dot');
+  var artC = node.querySelector('.art');
+  if (dotC) dotC.removeAttribute('animation__arm');
+  if (artC) artC.removeAttribute('animation__arm_plane');
 
-      this.armed = null;
-      if (this._disarmTimer) { clearTimeout(this._disarmTimer); this._disarmTimer = null; }
-      this.hideNode(node, dist);
-      return;
-    }
+  this.armed = null;
+  if (this._disarmTimer) { clearTimeout(this._disarmTimer); this._disarmTimer = null; }
+
+  // ✅ Floating "Hidden" feedback
+  const cam = this.camEl;
+  if (cam) {
+    const msg = document.createElement('a-entity');
+    msg.setAttribute('text', 'value: Hidden; color: #ffd580; align: center; width: 2; opacity: 1;');
+    msg.setAttribute('position', '0 0 -1.5');
+    cam.appendChild(msg);
+    msg.setAttribute('animation', 'property: position; to: 0 0.2 -1.5; dur: 600; easing: easeOutQuad');
+    msg.setAttribute('animation__fade', 'property: text.opacity; to: 0; dur: 600; delay: 300; easing: linear');
+    setTimeout(() => msg.remove(), 1000);
+  }
+
+  // ✅ reset fail counter (for the reminder feature)
+  this._failedArms = 0;
+
+  this.hideNode(node, dist);
+  return;
+}
 
     // (Re)arm path
     // 1) Clear previous pulses
@@ -546,6 +589,22 @@ AFRAME.registerComponent('hide-artnode-on-e', {
 
     // 2) Arm this node
     this.armed = { node: node, expiresAt: now + this.data.confirmWindow };
+    // Floating "Armed" text feedback
+    const cam = this.camEl;
+    if (cam) {
+    const msg = document.createElement('a-entity');
+    msg.setAttribute('text', 'value: Armed — wave again to confirm; color: #8cf; align: center; width: 2.5;');
+    msg.setAttribute('position', '0 0 -1.5');
+    cam.appendChild(msg);
+    setTimeout(() => msg.remove(), 1000);
+}
+  // ⏱️ Count unconfirmed arms and optionally remind
+  this._failedArms = (this._failedArms || 0) + 1;
+  if (this._failedArms >= 2 && !window._reminderShown) {
+  this.remindUser();
+  }
+
+
 
     // 3) Pulse dot if visible; else pulse plane
     var dot = node.querySelector('.dot');
@@ -712,6 +771,13 @@ function startExplore(){
     built = true;
   }
   resetPlayer();
+  // --- One-time deletion tutorial ---
+  const tut = document.getElementById('tutorialDelete');
+  if (tut && !window._tutorialShown) {
+  tut.classList.remove('hidden');
+  setTimeout(() => tut.classList.add('hidden'), 7000);
+  window._tutorialShown = true;
+}
 }
 
 setState('menu');
