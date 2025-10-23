@@ -15,6 +15,22 @@
     background: rgba(0,0,0,.55); padding:16px 22px; border-radius:14px;
     width:min(92vw,520px);
   }
+  /* Landscape orientation helper: rotate all UI elements 90° clockwise */
+  .landscape-ui .ui {
+  transform: rotate(90deg) translateY(-50%);
+  transform-origin: center center;
+  width: 100vh; /* swap width/height roles */
+  height: auto;
+}
+
+/* Because we've rotated, we re-center them manually */
+.landscape-ui .ui {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+}
+
   .small {font-size:13px; opacity:.85; margin-top:8px}
   .hidden{display:none}
   /* Make the audio gate more opaque so the menu doesn't show through */
@@ -660,6 +676,12 @@ function startExplore(){
 }
 
 setState('menu');
+
+// Force UI rotation for landscape-right (volume buttons down)
+(function rotateUIforLandscape(){
+  // Apply the class once
+  document.body.classList.add('landscape-ui');
+})();
 </script>
 </body>
 </html>
