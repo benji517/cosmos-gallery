@@ -176,7 +176,6 @@
 </div>
 </div>
 
-
 <a-scene renderer="colorManagement:true" background="color:#01040c" fog="type: linear; color: #01040c; near: 8; far: 45" hide-artnode-on-e="requireConfirm: true; confirmWindow: 1200">
   <!-- Audio assets -->
   <a-assets>
@@ -206,6 +205,20 @@
 </a-scene>
 
 <script>
+// --- Device check for UI rotation ---
+const isiPhone = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+if (!isiPhone) {
+  // Remove 90° rotation when on desktop/laptop
+  document.addEventListener('DOMContentLoaded', () => {
+    const rotor = document.getElementById('ui-rotor');
+    if (rotor) {
+      rotor.style.transform = 'translate(-50%, -50%) rotate(0deg)';
+      rotor.style.width = '100vw';
+      rotor.style.height = '100vh';
+    }
+  });
+}
+
 /* ---------- STATE ---------- */
 let state = 'menu'; // 'menu' | 'create' | 'explore' | 'decision'
 window.state = state; // expose to components that read window.state
