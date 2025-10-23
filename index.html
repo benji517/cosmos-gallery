@@ -203,12 +203,14 @@
   <a-entity light="type: ambient; intensity: 0.45"></a-entity>
   <a-entity light="type: point; intensity: 0.9; distance: 20" position="0 3 0"></a-entity>
 </a-scene>
-
 <script>
-// --- Device check for UI rotation ---
-const isiPhone = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-if (!isiPhone) {
-  // Remove 90° rotation when on desktop/laptop
+
+// --- Device check for UI rotation (robust) ---
+const ua = navigator.userAgent || navigator.vendor || window.opera;
+const isIOS = /iPhone|iPad|iPod/i.test(ua) && !window.MSStream && /Safari/i.test(ua) && !/Macintosh/i.test(ua);
+
+if (!isIOS) {
+  // Remove 90° rotation when on desktop/laptop (for demo clarity)
   document.addEventListener('DOMContentLoaded', () => {
     const rotor = document.getElementById('ui-rotor');
     if (rotor) {
@@ -263,7 +265,6 @@ window.addEventListener('keydown', (e) => {
 });
 
 document.getElementById('recsCloseBtn')?.addEventListener('click', hideRecommendationsAndRestartWithThanks);
-
 
 function unlockAudioOnce() {
   if (window.__audioUnlocked) return;
