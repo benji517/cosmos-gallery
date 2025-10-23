@@ -21,29 +21,54 @@
   transform-origin: center center;
   width: 100vh; /* swap width/height roles */
   height: auto;
-}
-
+  }
 /* Because we've rotated, we re-center them manually */
 .landscape-ui .ui {
   position: fixed;
   left: 50%;
   top: 50%;
   translate: -50% -50%;
-}
-
+  }
   .small {font-size:13px; opacity:.85; margin-top:8px}
   .hidden{display:none}
   /* Make the audio gate more opaque so the menu doesn't show through */
   #audioGate { z-index: 999; background: rgba(0,0,0,.86); }
   /* Optional: soften the card */
   #audioGate { box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  /* Fullscreen rotor: rotate all UI 90deg clockwise for landscape-right */
+#ui-rotor{
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  /* swap w/h so the rotated area covers the screen */
+  width: 100vh;
+  height: 100vw;
+  transform: translate(-50%, -50%) rotate(90deg);
+  transform-origin: center center;
+  z-index: 999; /* above the scene */
+  pointer-events: none; /* let inner cards decide */
+}
+
+/* Re-center each .ui card inside the rotated plane */
+#ui-rotor .ui{
+  position: absolute;          /* override fixed */
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);  /* override previous translate */
+  max-width: min(92vw, 520px);  /* keep your sizing intent */
+  pointer-events: auto;         /* clickable again */
+}
+
+/* Gate visual tweaks still apply */
+#audioGate { background: rgba(0,0,0,.86); box-shadow: 0 10px 40px rgba(0,0,0,.5); }
 </style>
 </head>
 <body>
 
+<div id="ui-rotor">
 <!-- MENU UI -->
 <div id="menu" class="ui">
-  <h2 style="margin:.2rem 0 0.6rem">Cluster Walk</h2>
+  <h2 style="margin:.2rem 0 0.6rem">Silica Sky</h2>
   <p style="margin:.2rem 0 .8rem; opacity:.9">A single idea cluster in a vast cosmos. Walk the path, discover connections.</p>
   <p class="small" style="margin-top:0.6rem; opacity:0.85;">
   Controls: <b>W</b> = proceed • <b>S</b> = back • <b>A/D</b> = steer
@@ -52,7 +77,7 @@
     <div>• <b>Press W</b> — Visit existing cluster</div>
     <div>• <b>Press S</b> — Create new cluster (placeholder)</div>
   </div>
-  <div class="small">Use the foil pads or keyboard.</div>
+  <div class="small">Use the foil pads.</div>
 </div>
 
 <!-- PLACEHOLDER UI FOR "CREATE NEW CLUSTER" -->
@@ -82,6 +107,7 @@
   </p>
   <div class="small">This is required by iOS for audio playback.</div>
   <div style="margin-top:.8rem; opacity:.8">👆 Tap anywhere</div>
+</div>
 </div>
 
 <a-scene renderer="colorManagement:true" background="color:#01040c" fog="type: linear; color: #01040c; near: 8; far: 45" hide-artnode-on-e="requireConfirm: true; confirmWindow: 1200">
