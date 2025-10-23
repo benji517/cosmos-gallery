@@ -54,7 +54,7 @@
   </div>
 </div>
 
-<a-scene renderer="colorManagement:true" background="color:#01040c" fog="type: linear; color: #01040c; near: 8; far: 45">
+<a-scene renderer="colorManagement:true" background="color:#01040c" fog="type: linear; color: #01040c; near: 8; far: 45" hide-artnode-on-e>
   <a-entity id="stars"></a-entity>
 
   <!-- Camera rig -->
@@ -77,13 +77,14 @@
 <script>
 /* ---------- STATE ---------- */
 let state = 'menu'; // 'menu' | 'create' | 'explore' | 'decision'
-
+window.state = state; // expose to components that read window.state
 const uiMenu = document.getElementById('menu');
 const uiCreate = document.getElementById('create');
 const uiDecision = document.getElementById('decision');
 
 function setState(next) {
   state = next;
+  window.state = state; // keep global in sync
   uiMenu.classList.toggle('hidden', state !== 'menu');
   uiCreate.classList.toggle('hidden', state !== 'create');
   uiDecision.classList.toggle('hidden', state !== 'decision');
@@ -291,7 +292,6 @@ function assignArtImages() {
   });
 }
 
-
 /* ---------- Reveal-on-approach ---------- */
 AFRAME.registerComponent('art-revealer', {
   init() {
@@ -310,7 +310,11 @@ AFRAME.registerComponent('art-revealer', {
   tick() {
     if (!this.cam) return;
     this.cam.object3D.getWorldPosition(this._camWorld);
+
     this.pairs.forEach(({plane, dot})=>{
+      // NEW: if node/plane was hidden (via E), skip all reveal logic
+      if (!plane.object3D.visible || plane.getAttribute('visible') === false) return;
+
       plane.object3D.getWorldPosition(this._artWorld);
       const d = this._camWorld.distanceTo(this._artWorld);
 
@@ -326,11 +330,14 @@ AFRAME.registerComponent('art-revealer', {
 
       // keep existing src
       const mat = plane.getAttribute('material') || {};
-      const src = mat.src || plane.getAttribute('material').src;
+      const src = mat.src || (plane.getAttribute('material') && plane.getAttribute('material').src);
 
       plane.setAttribute('material',
         `shader: flat; src: ${src}; opacity:${imgOpacity}; transparent:${transparent}; side: double; depthTest:${depthTest}; depthWrite:${depthWrite}`
       );
+
+      // NEW: skip dot updates if node is hidden
+      if (!dot.object3D.visible || dot.getAttribute('visible') === false) return;
 
       // dot: start fading early, then hide completely once t passes threshold
       if (t > DOT_HIDE_T) {
@@ -344,6 +351,64 @@ AFRAME.registerComponent('art-revealer', {
         );
       }
     });
+  }
+});
+
+/* ---------- Hide nearest art node on "E" press ---------- */
+AFRAME.registerComponent('hide-artnode-on-e', {
+  schema: {
+    radius: { type: 'number', default: 1.6 }   // how close you must be to hide
+  },
+  init() {
+    this.onKeyDown = this.onKeyDown.bind(this);
+    window.addEventListener('keydown', this.onKeyDown, { passive: true });
+
+    this.camEl = document.getElementById('cam');
+    this._camWorld = new THREE.Vector3();
+    this._tmp = new THREE.Vector3();
+  },
+  remove() {
+    window.removeEventListener('keydown', this.onKeyDown);
+  },
+  onKeyDown(e) {
+    // Only act while exploring, and only on 'E'
+    if ((window.state !== 'explore') || (e.key?.toLowerCase() !== 'e')) return;
+
+    const cam = this.camEl;
+    if (!cam) return;
+
+    // Camera world position
+    cam.object3D.getWorldPosition(this._camWorld);
+
+    // Gather all art planes that are currently visible
+    const planes = Array.from(document.querySelectorAll('#nodes .art'))
+      .filter(p => p.object3D.visible && p.getAttribute('visible') !== false);
+
+    // Find the nearest one
+    let nearestPlane = null;
+    let nearestDist = Infinity;
+
+    for (const p of planes) {
+      p.object3D.getWorldPosition(this._tmp);
+      const d = this._camWorld.distanceTo(this._tmp);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearestPlane = p;
+      }
+    }
+
+    // If nothing close enough, do nothing
+    if (!nearestPlane || nearestDist > this.data.radius) return;
+
+    // Hide the entire node (parent entity so both dot + plane vanish)
+    const node = nearestPlane.parentEl;
+    if (node) {
+      node.emit('hidden-by-user', { key: 'e', distance: nearestDist }, false);
+      node.setAttribute('visible', false);
+
+      // If later you add raycast/physics classes, disable them here
+      node.classList.remove('clickable');
+    }
   }
 });
 
