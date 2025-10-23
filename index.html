@@ -15,20 +15,6 @@
     background: rgba(0,0,0,.55); padding:16px 22px; border-radius:14px;
     width:min(92vw,520px);
   }
-  /* Landscape orientation helper: rotate all UI elements 90° clockwise */
-  .landscape-ui .ui {
-  transform: rotate(90deg) translateY(-50%);
-  transform-origin: center center;
-  width: 100vh; /* swap width/height roles */
-  height: auto;
-  }
-/* Because we've rotated, we re-center them manually */
-.landscape-ui .ui {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  translate: -50% -50%;
-  }
   .small {font-size:13px; opacity:.85; margin-top:8px}
   .hidden{display:none}
   /* Make the audio gate more opaque so the menu doesn't show through */
@@ -36,33 +22,46 @@
   /* Optional: soften the card */
   #audioGate { box-shadow: 0 10px 40px rgba(0,0,0,.5); }
   /* Fullscreen rotor: rotate all UI 90deg clockwise for landscape-right */
-#ui-rotor{
+  /* Fullscreen rotor: rotate all UI 90deg clockwise for landscape-right */
+  /* Fullscreen rotor: rotate all UI 90deg clockwise for landscape-right (Safari PWA safe) */
+  #ui-rotor{
   position: fixed;
-  left: 50%;
-  top: 50%;
-  /* swap w/h so the rotated area covers the screen */
+  /* center, compensating for iOS safe-area */
+  left: calc(50% + (env(safe-area-inset-right) - env(safe-area-inset-left)) / 2);
+  top:  calc(50% + (env(safe-area-inset-bottom) - env(safe-area-inset-top)) / 2);
+
+  /* swap w/h so the rotated plane covers the screen */
   width: 100vh;
   height: 100vw;
+
   transform: translate(-50%, -50%) rotate(90deg);
   transform-origin: center center;
-  z-index: 999; /* above the scene */
-  pointer-events: none; /* let inner cards decide */
+
+  z-index: 999;
+  pointer-events: none; /* inner cards re-enable */
 }
 
 /* Re-center each .ui card inside the rotated plane */
-#ui-rotor .ui{
-  position: absolute;          /* override fixed */
+  #ui-rotor .ui{
+  position: absolute;              /* override base .ui fixed */
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%);  /* override previous translate */
-  max-width: min(92vw, 520px);  /* keep your sizing intent */
-  pointer-events: auto;         /* clickable again */
+  transform: translate(-50%, -50%);
+  max-width: min(92vmin, 520px);   /* vmin sizes better when rotated */
+  width: auto;
+  pointer-events: auto;            /* clickable again */
 }
 
-/* Gate visual tweaks still apply */
+/* Optional subtle overall shrink to avoid headset edges */
+@supports (scale: 0.95) {
+  #ui-rotor { scale: 0.96; }
+}
+
+/* Gate visual tweaks */
 #audioGate { background: rgba(0,0,0,.86); box-shadow: 0 10px 40px rgba(0,0,0,.5); }
 </style>
 </head>
+
 <body>
 
 <div id="ui-rotor">
@@ -655,33 +654,47 @@ function resetPlayer(){
   rig.object3D.rotation.set(0,0,0);
 }
 
-// Smooth fade to black with text, then reload
+// Smooth fade to black with text, then reload (centered in rotated UI)
 function fadeAndReload() {
+  const rotor = document.getElementById('ui-rotor') || document.body;
+
   const overlay = document.createElement('div');
-  overlay.style.position = 'fixed';
-  overlay.style.left = 0;
-  overlay.style.top = 0;
-  overlay.style.width = '100vw';
-  overlay.style.height = '100vh';
+  // place inside rotor so it inherits the 90° rotation
+  overlay.style.position = (rotor.id === 'ui-rotor') ? 'absolute' : 'fixed';
+  overlay.style.left = '0';
+  overlay.style.top = '0';
+  overlay.style.width = '100%';
+  overlay.style.height = '100%';
   overlay.style.background = '#000';
   overlay.style.opacity = '0';
   overlay.style.transition = 'opacity 1.8s ease';
-  overlay.style.zIndex = '999';
+  overlay.style.zIndex = '1000'; // above rotor (999)
   overlay.style.display = 'flex';
   overlay.style.alignItems = 'center';
   overlay.style.justifyContent = 'center';
   overlay.style.flexDirection = 'column';
-  document.body.appendChild(overlay);
+
+  // center within the rotated plane if we’re inside #ui-rotor
+  if (rotor.id === 'ui-rotor') {
+    overlay.style.left = '50%';
+    overlay.style.top = '50%';
+    overlay.style.transform = 'translate(-50%, -50%)';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+  }
+
+  rotor.appendChild(overlay);
 
   const text = document.createElement('div');
   text.textContent = 'Leaving cluster…';
   text.style.color = '#fff';
   text.style.fontSize = '1.6rem';
-  text.style.opacity = '0.85';
+  text.style.opacity = '0.92';
   text.style.fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
   text.style.letterSpacing = '0.06em';
   overlay.appendChild(text);
 
+  // fade in then reload
   requestAnimationFrame(() => { overlay.style.opacity = '1'; });
   setTimeout(() => { location.reload(); }, 2200);
 }
@@ -702,12 +715,6 @@ function startExplore(){
 }
 
 setState('menu');
-
-// Force UI rotation for landscape-right (volume buttons down)
-(function rotateUIforLandscape(){
-  // Apply the class once
-  document.body.classList.add('landscape-ui');
-})();
 </script>
 </body>
 </html>
