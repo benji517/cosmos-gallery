@@ -473,7 +473,6 @@ AFRAME.registerComponent('hide-artnode-on-e', {
 
     this.armed = null; // { node, expiresAt }
     this._disarmTimer = null;
-    this._failedArms = 0; // counts arms that didn’t confirm
   },
 
   remove: function () {
@@ -507,22 +506,6 @@ AFRAME.registerComponent('hide-artnode-on-e', {
     if (snd) snd.playSound();
   },
 
-  remindUser: function () {
-  if (window._reminderShown) return;
-  const cam = this.camEl;
-  if (!cam) return;
-
-  const msg = document.createElement('a-entity');
-  msg.setAttribute('text', 'value: Wave twice to hide nearby art; color: #ccc; align: center; width: 2.5; opacity: 0.9;');
-  msg.setAttribute('position', '0 -0.3 -1.5');
-  cam.appendChild(msg);
-  msg.setAttribute('animation', 'property: text.opacity; to: 0; dur: 1800; delay: 1800; easing: linear');
-  setTimeout(() => msg.remove(), 3500);
-
-  window._reminderShown = true;
-  },
-
-
   onKeyDown: function (e) {
     if (window.state !== 'explore') return;
     var key = e.key ? e.key.toLowerCase() : '';
@@ -549,21 +532,6 @@ AFRAME.registerComponent('hide-artnode-on-e', {
   this.armed = null;
   if (this._disarmTimer) { clearTimeout(this._disarmTimer); this._disarmTimer = null; }
 
-  // ✅ Floating "Hidden" feedback
-  const cam = this.camEl;
-  if (cam) {
-    const msg = document.createElement('a-entity');
-    msg.setAttribute('text', 'value: Hidden; color: #ffd580; align: center; width: 2; opacity: 1;');
-    msg.setAttribute('position', '0 0 -1.5');
-    cam.appendChild(msg);
-    msg.setAttribute('animation', 'property: position; to: 0 0.2 -1.5; dur: 600; easing: easeOutQuad');
-    msg.setAttribute('animation__fade', 'property: text.opacity; to: 0; dur: 600; delay: 300; easing: linear');
-    setTimeout(() => msg.remove(), 1000);
-  }
-
-  // ✅ reset fail counter (for the reminder feature)
-  this._failedArms = 0;
-
   this.hideNode(node, dist);
   return;
 }
@@ -589,22 +557,6 @@ AFRAME.registerComponent('hide-artnode-on-e', {
 
     // 2) Arm this node
     this.armed = { node: node, expiresAt: now + this.data.confirmWindow };
-    // Floating "Armed" text feedback
-    const cam = this.camEl;
-    if (cam) {
-    const msg = document.createElement('a-entity');
-    msg.setAttribute('text', 'value: Armed — wave again to confirm; color: #8cf; align: center; width: 2.5;');
-    msg.setAttribute('position', '0 0 -1.5');
-    cam.appendChild(msg);
-    setTimeout(() => msg.remove(), 1000);
-}
-  // ⏱️ Count unconfirmed arms and optionally remind
-  this._failedArms = (this._failedArms || 0) + 1;
-  if (this._failedArms >= 2 && !window._reminderShown) {
-  this.remindUser();
-  }
-
-
 
     // 3) Pulse dot if visible; else pulse plane
     var dot = node.querySelector('.dot');
