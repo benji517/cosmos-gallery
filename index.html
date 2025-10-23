@@ -17,6 +17,7 @@
   }
   .small {font-size:13px; opacity:.85; margin-top:8px}
   .hidden{display:none}
+  #audioGate { z-index: 999; }
 </style>
 </head>
 <body>
@@ -54,7 +55,25 @@
   </div>
 </div>
 
-<a-scene renderer="colorManagement:true" background="color:#01040c" fog="type: linear; color: #01040c; near: 8; far: 45" hide-artnode-on-e>
+<!-- ONE-TIME AUDIO GATE -->
+<div id="audioGate" class="ui">
+  <h3 style="margin:.2rem 0 .6rem">Enable Audio</h3>
+  <p style="margin:.2rem 0 .8rem; opacity:.9">
+    Tap once to enable sound. Then insert phone into the viewer.
+  </p>
+  <div class="small">This is required by iOS for audio playback.</div>
+  <div style="margin-top:.8rem; opacity:.8">👆 Tap anywhere</div>
+</div>
+
+<a-scene renderer="colorManagement:true" background="color:#01040c" fog="type: linear; color: #01040c; near: 8; far: 45" hide-artnode-on-e="requireConfirm: true; confirmWindow: 1200">
+  <!-- Audio assets -->
+  <a-assets>
+  <audio id="sfxHide" src="assets/pop-deletion.mp3" crossorigin="anonymous"></audio>
+  </a-assets>
+
+  <!-- Single audio emitter (triggered from JS) -->
+  <a-entity id="audioHide" sound="src: #sfxHide; poolSize: 4; volume: 0.85"></a-entity>
+
   <a-entity id="stars"></a-entity>
 
   <!-- Camera rig -->
@@ -105,9 +124,30 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-document.addEventListener('touchend', () => {
-  const c = document.querySelector('a-scene')?.canvas; if (c) c.focus();
-});
+function unlockAudioOnce() {
+  if (window.__audioUnlocked) return;
+
+  // Focus the canvas for controls
+  const c = document.querySelector('a-scene')?.canvas;
+  if (c) c.focus();
+
+  // One-time WebAudio unlock (BLE keys don't count as a gesture)
+  const hide = document.querySelector('#audioHide');
+  try {
+    hide?.components?.sound?.playSound();
+    hide?.components?.sound?.stopSound();
+    window.__audioUnlocked = true;
+  } catch(e) { /* noop */ }
+
+  // Dismiss the overlay
+  const gate = document.getElementById('audioGate');
+  if (gate) gate.classList.add('hidden');
+}
+
+// Unlock on first tap OR click (helps desktop testing too)
+document.addEventListener('touchend', unlockAudioOnce, { passive: true });
+document.addEventListener('click',     unlockAudioOnce, { passive: true });
+
 
 /* ---------- BUILD SCENE ---------- */
 const TOTAL_NODES = 12;
@@ -354,10 +394,12 @@ AFRAME.registerComponent('art-revealer', {
   }
 });
 
-/* ---------- Hide nearest art node on "E" press ---------- */
+/* ---------- Hide nearest art node on "E" press (two-press confirm, sound on delete) ---------- */
 AFRAME.registerComponent('hide-artnode-on-e', {
   schema: {
-    radius: { type: 'number', default: 1.6 }   // how close you must be to hide
+    radius:        { type: 'number', default: 1.6 },   // proximity threshold (meters)
+    requireConfirm:{ type: 'boolean', default: true }, // two-press confirmation by default
+    confirmWindow: { type: 'number', default: 1200 }   // ms allowed between presses
   },
   init() {
     this.onKeyDown = this.onKeyDown.bind(this);
@@ -366,49 +408,92 @@ AFRAME.registerComponent('hide-artnode-on-e', {
     this.camEl = document.getElementById('cam');
     this._camWorld = new THREE.Vector3();
     this._tmp = new THREE.Vector3();
+
+    // audio emitter for deletion
+    this.sfxHide = document.querySelector('#audioHide');
+
+    // confirmation state
+    this.armed = null; // { node, expiresAt }
   },
-  remove() {
-    window.removeEventListener('keydown', this.onKeyDown);
-  },
-  onKeyDown(e) {
-    // Only act while exploring, and only on 'E'
-    if ((window.state !== 'explore') || (e.key?.toLowerCase() !== 'e')) return;
+  remove() { window.removeEventListener('keydown', this.onKeyDown); },
 
-    const cam = this.camEl;
-    if (!cam) return;
-
-    // Camera world position
-    cam.object3D.getWorldPosition(this._camWorld);
-
-    // Gather all art planes that are currently visible
+  nearestVisibleArtPlane() {
     const planes = Array.from(document.querySelectorAll('#nodes .art'))
       .filter(p => p.object3D.visible && p.getAttribute('visible') !== false);
+    if (!this.camEl || planes.length === 0) return { plane: null, dist: Infinity };
 
-    // Find the nearest one
-    let nearestPlane = null;
-    let nearestDist = Infinity;
-
+    this.camEl.object3D.getWorldPosition(this._camWorld);
+    let nearestPlane = null, nearestDist = Infinity;
     for (const p of planes) {
       p.object3D.getWorldPosition(this._tmp);
       const d = this._camWorld.distanceTo(this._tmp);
-      if (d < nearestDist) {
-        nearestDist = d;
-        nearestPlane = p;
-      }
+      if (d < nearestDist) { nearestDist = d; nearestPlane = p; }
     }
+    return { plane: nearestPlane, dist: nearestDist };
+  },
 
-    // If nothing close enough, do nothing
-    if (!nearestPlane || nearestDist > this.data.radius) return;
+  hideNode(node, dist) {
+    node.emit('hidden-by-user', { key: 'e', distance: dist }, false);
+    node.setAttribute('visible', false);
+    node.classList.remove('clickable');
+    this.sfxHide?.components?.sound?.playSound(); // play sound only when deletion happens
+  },
 
-    // Hide the entire node (parent entity so both dot + plane vanish)
-    const node = nearestPlane.parentEl;
-    if (node) {
-      node.emit('hidden-by-user', { key: 'e', distance: nearestDist }, false);
-      node.setAttribute('visible', false);
+  onKeyDown(e) {
+    if ((window.state !== 'explore') || (e.key?.toLowerCase() !== 'e')) return;
 
-      // If later you add raycast/physics classes, disable them here
-      node.classList.remove('clickable');
-    }
+    const { plane, dist } = this.nearestVisibleArtPlane();
+    if (!plane || dist > this.data.radius) return;
+    const node = plane.parentEl;
+
+    // Single-press fallback if requireConfirm=false (can be toggled in scene attr)
+    if (!this.data.requireConfirm) { this.hideNode(node, dist); return; }
+
+    const now = performance.now();
+
+    // If same node is armed and within window -> confirm hide
+    if (this.armed && this.armed.node === node && now < this.armed.expiresAt) {
+    // Remove pulse visual before hiding
+    const dot = node.querySelector('.dot');
+    dot?.removeAttribute('animation__arm');
+
+    this.armed = null;
+    this.hideNode(node, dist);
+  return;
+}
+
+
+// (Re)arm this node for confirmation
+
+// 1) Clear any previous node's pulse (if switching targets quickly)
+if (this.armed?.node) {
+  const prevDot = this.armed.node.querySelector('.dot');
+  prevDot?.removeAttribute('animation__arm');
+}
+
+// 2) Set new armed state
+this.armed = { node, expiresAt: now + this.data.confirmWindow };
+
+// 3) Add a subtle pulse on the dot as a visual affordance
+const dot = node.querySelector('.dot');
+if (dot) {
+  dot.setAttribute(
+    'animation__arm',
+    'property: scale; to: 0.14 0.14 0.14; dur: 140; dir: alternate; loop: 3; easing: easeInOutSine'
+  );
+}
+
+// 4) Schedule auto-disarm and remove the pulse if the window expires
+  clearTimeout(this._disarmTimer);
+  const armedNode = node; // capture for the timer closure
+  this._disarmTimer = setTimeout(() => {
+  const d = armedNode?.querySelector?.('.dot');
+  d?.removeAttribute('animation__arm');
+
+  // Only clear armed if we’re still pointing at the same node
+  if (this.armed && this.armed.node === armedNode) this.armed = null;
+  }, this.data.confirmWindow + 50);
+
   }
 });
 
