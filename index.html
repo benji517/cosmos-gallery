@@ -8,57 +8,89 @@
 <title>Cosmos Prototype</title>
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 <style>
-  html,body{margin:0;height:100%;background:#000;font-family:system-ui,-apple-system,Segoe UI,Roboto}
-  .ui {
-    position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%);
-    color:#fff; text-align:center; z-index:10;
-    background: rgba(0,0,0,.55); padding:16px 22px; border-radius:14px;
-    width:min(92vw,520px);
+  /* ---- Base ---- */
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #000;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
-  .small {font-size:13px; opacity:.85; margin-top:8px}
-  .hidden{display:none}
-  /* Make the audio gate more opaque so the menu doesn't show through */
-  #audioGate { z-index: 999; background: rgba(0,0,0,.86); }
-  /* Optional: soften the card */
-  #audioGate { box-shadow: 0 10px 40px rgba(0,0,0,.5); }
-  /* Fullscreen rotor: rotate all UI 90deg clockwise for landscape-right */
-  /* Fullscreen rotor: rotate all UI 90deg clockwise for landscape-right */
-  /* Fullscreen rotor: rotate all UI 90deg clockwise for landscape-right (Safari PWA safe) */
-  #ui-rotor{
-  position: fixed;
-  /* center, compensating for iOS safe-area */
-  left: calc(50% + (env(safe-area-inset-right) - env(safe-area-inset-left)) / 2);
-  top:  calc(50% + (env(safe-area-inset-bottom) - env(safe-area-inset-top)) / 2);
 
-  /* swap w/h so the rotated plane covers the screen */
-  width: 100vh;
-  height: 100vw;
+  /* ---- Generic UI card ---- */
+  .ui {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    color: #fff;
+    text-align: center;
+    z-index: 10;
+    background: rgba(0,0,0,.55);
+    padding: 16px 22px;
+    border-radius: 14px;
+    width: min(92vw, 520px);
+  }
+  .small { font-size: 13px; opacity: .85; margin-top: 8px; }
+  .hidden { display: none; }
 
-  transform: translate(-50%, -50%) rotate(90deg);
-  transform-origin: center center;
+  /* ---- Audio gate visual tweaks ---- */
+  #audioGate {
+    z-index: 999;
+    background: rgba(0,0,0,.86);
+    box-shadow: 0 10px 40px rgba(0,0,0,.5);
+  }
 
-  z-index: 999;
-  pointer-events: none; /* inner cards re-enable */
-}
+  /* ---- Rotated UI plane for landscape-right (Safari PWA safe) ---- */
+  #ui-rotor {
+    position: fixed;
 
-/* Re-center each .ui card inside the rotated plane */
-  #ui-rotor .ui{
-  position: absolute;              /* override base .ui fixed */
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  max-width: min(92vmin, 520px);   /* vmin sizes better when rotated */
-  width: auto;
-  pointer-events: auto;            /* clickable again */
-}
+    /* center, compensating for iOS safe-area */
+    left: calc(50% + (env(safe-area-inset-right) - env(safe-area-inset-left)) / 2);
+    top:  calc(50% + (env(safe-area-inset-bottom) - env(safe-area-inset-top)) / 2);
 
-/* Optional subtle overall shrink to avoid headset edges */
-@supports (scale: 0.95) {
-  #ui-rotor { scale: 0.96; }
-}
+    /* swap w/h so the rotated plane covers the screen */
+    width: 100vh;
+    height: 100vw;
 
-/* Gate visual tweaks */
-#audioGate { background: rgba(0,0,0,.86); box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+    transform: translate(-50%, -50%) rotate(90deg);
+    transform-origin: center center;
+
+    z-index: 999;
+    pointer-events: none; /* inner cards re-enable */
+  }
+
+  /* Re-center each .ui card inside the rotated plane */
+  #ui-rotor .ui {
+    position: absolute;              /* override base .ui fixed */
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    max-width: min(92vmin, 520px);   /* vmin sizes better when rotated */
+    width: auto;
+    pointer-events: auto;            /* clickable again */
+  }
+
+  /* Optional subtle overall shrink to avoid headset edges */
+  @supports (scale: 0.95) {
+    #ui-rotor { scale: 0.96; }
+  }
+
+  /* ---- Recommendation grid inside the rotated UI (#decision card) ---- */
+  #ui-rotor .rec-grid {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 10px;
+    flex-wrap: nowrap;
+  }
+  #ui-rotor .rec-thumb {
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 10px;
+    box-shadow: 0 8px 22px rgba(0,0,0,.45);
+    opacity: 0.95;
+  }
 </style>
 </head>
 
@@ -165,6 +197,9 @@ function setState(next) {
   uiDecision.classList.toggle('hidden', state !== 'decision');
   const c = document.querySelector('a-scene').canvas;
   if (c) c.focus();
+  // show/hide recommendations when reaching the final node
+  ensureRecPanel();
+  toggleRecPanel(state === 'decision');
 }
 
 window.addEventListener('keydown', (e) => {
@@ -708,6 +743,77 @@ function fadeAndReload() {
   // fade in then reload
   requestAnimationFrame(() => { overlay.style.opacity = '1'; });
   setTimeout(() => { location.reload(); }, 2200);
+}
+
+/* ---------- Recommendation gallery using unused art images ---------- */
+/* ---------- Recommendation gallery using unused art images (float + yaw) ---------- */
+function ensureRecPanel() {
+  if (document.getElementById('recPanel')) return; // already built
+
+  const cam = document.getElementById('cam');
+  if (!cam) return;
+
+  // Use image05–image08 from the same assets folder
+  const files = [
+    "assets/image05.jpeg",
+    "assets/image06.jpeg",
+    "assets/image07.jpeg",
+    "assets/image08.jpeg"
+  ];
+
+  // Parent panel in front of the camera
+  const panel = document.createElement('a-entity');
+  panel.id = 'recPanel';
+  panel.setAttribute('position', '0 0 -1.6');
+  panel.setAttribute('visible', 'false');
+
+  // Background plane
+  const bg = document.createElement('a-plane');
+  bg.setAttribute('width', '1.8');
+  bg.setAttribute('height', '0.65');
+  bg.setAttribute('material', 'color:#000; opacity:0.35; transparent:true; side:double');
+  bg.setAttribute('position', '0 0 0');
+  panel.appendChild(bg);
+
+  // Title
+  const title = document.createElement('a-entity');
+  title.setAttribute('text', 'value: Suggested pieces; color:#ddd; align:center; width:2.4;');
+  title.setAttribute('position', '0 0.38 0.01');
+  panel.appendChild(title);
+
+  // Thumbnails with float + gentle yaw
+  const spacing = 0.45;
+  const startX = -((files.length - 1) * spacing) / 2;
+  for (let i = 0; i < files.length; i++) {
+    const x = startX + i * spacing;
+    const tile = document.createElement('a-plane');
+    tile.setAttribute('width', '0.4');
+    tile.setAttribute('height', '0.4');
+    tile.setAttribute('position', `${x} 0 0.02`);
+    tile.setAttribute('material', `shader: flat; src: url(${files[i]}); transparent:false; side:double`);
+
+    // soft float (y up/down)
+    tile.setAttribute(
+      'animation__float',
+      `property: position; to: ${x} 0.05 0.02; dir: alternate; dur: ${2200 + i*220}; easing: easeInOutSine; loop: true`
+    );
+
+    // gentle yaw oscillation
+    tile.setAttribute(
+      'animation__yaw',
+      `property: rotation; to: 0 10 0; dir: alternate; dur: ${3800 + i*180}; easing: easeInOutSine; loop: true`
+    );
+
+    panel.appendChild(tile);
+  }
+
+  cam.appendChild(panel);
+}
+
+function toggleRecPanel(show) {
+  const panel = document.getElementById('recPanel');
+  if (!panel) return;
+  panel.setAttribute('visible', show ? 'true' : 'false');
 }
 
 /* ---------- Start ---------- */
