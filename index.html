@@ -405,11 +405,12 @@ AFRAME.registerComponent('art-revealer', {
 /* ---------- Hide nearest art node on "E" press (two-press confirm, sound on delete) ---------- */
 AFRAME.registerComponent('hide-artnode-on-e', {
   schema: {
-    radius:        { type: 'number', default: 1.6 },   // proximity threshold (meters)
-    requireConfirm:{ type: 'boolean', default: true }, // two-press confirmation by default
-    confirmWindow: { type: 'number', default: 1200 }   // ms allowed between presses
+    radius:        { type: 'number', default: 1.6 },
+    requireConfirm:{ type: 'boolean', default: true },
+    confirmWindow: { type: 'number', default: 1200 }
   },
-  init() {
+
+  init: function () {
     this.onKeyDown = this.onKeyDown.bind(this);
     window.addEventListener('keydown', this.onKeyDown, { passive: true });
 
@@ -417,111 +418,138 @@ AFRAME.registerComponent('hide-artnode-on-e', {
     this._camWorld = new THREE.Vector3();
     this._tmp = new THREE.Vector3();
 
-    // audio emitter for deletion
     this.sfxHide = document.querySelector('#audioHide');
 
-    // confirmation state
     this.armed = null; // { node, expiresAt }
+    this._disarmTimer = null;
   },
-  remove() { window.removeEventListener('keydown', this.onKeyDown); },
 
-  nearestVisibleArtPlane() {
-    const planes = Array.from(document.querySelectorAll('#nodes .art'))
-      .filter(p => p.object3D.visible && p.getAttribute('visible') !== false);
+  remove: function () {
+    window.removeEventListener('keydown', this.onKeyDown);
+    if (this._disarmTimer) clearTimeout(this._disarmTimer);
+  },
+
+  nearestVisibleArtPlane: function () {
+    var planes = Array.from(document.querySelectorAll('#nodes .art'))
+      .filter(function (p) { return p.object3D.visible && p.getAttribute('visible') !== false; });
+
     if (!this.camEl || planes.length === 0) return { plane: null, dist: Infinity };
 
     this.camEl.object3D.getWorldPosition(this._camWorld);
-    let nearestPlane = null, nearestDist = Infinity;
-    for (const p of planes) {
+    var nearestPlane = null, nearestDist = Infinity;
+
+    for (var i = 0; i < planes.length; i++) {
+      var p = planes[i];
       p.object3D.getWorldPosition(this._tmp);
-      const d = this._camWorld.distanceTo(this._tmp);
+      var d = this._camWorld.distanceTo(this._tmp);
       if (d < nearestDist) { nearestDist = d; nearestPlane = p; }
     }
     return { plane: nearestPlane, dist: nearestDist };
   },
 
-  hideNode(node, dist) {
+  hideNode: function (node, dist) {
     node.emit('hidden-by-user', { key: 'e', distance: dist }, false);
     node.setAttribute('visible', false);
     node.classList.remove('clickable');
-    this.sfxHide?.components?.sound?.playSound(); // play sound only when deletion happens
+    var snd = this.sfxHide && this.sfxHide.components && this.sfxHide.components.sound;
+    if (snd) snd.playSound();
   },
 
-  onKeyDown(e) {
-    if ((window.state !== 'explore') || (e.key?.toLowerCase() !== 'e')) return;
+  onKeyDown: function (e) {
+    if (window.state !== 'explore') return;
+    var key = e.key ? e.key.toLowerCase() : '';
+    if (key !== 'e') return;
 
-    const { plane, dist } = this.nearestVisibleArtPlane();
+    var res  = this.nearestVisibleArtPlane();
+    var plane = res.plane;
+    var dist  = res.dist;
     if (!plane || dist > this.data.radius) return;
-    const node = plane.parentEl;
 
-    // Single-press fallback if requireConfirm=false (can be toggled in scene attr)
+    var node = plane.parentEl;
+    var now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+
+    // Single-press fallback if requireConfirm=false
     if (!this.data.requireConfirm) { this.hideNode(node, dist); return; }
 
-    const now = performance.now();
-
-    // If same node is armed and within window -> confirm hide
+    // Confirm path: second E within window on same node
     if (this.armed && this.armed.node === node && now < this.armed.expiresAt) {
-    // Remove pulse visual before hiding
-    const dot = node.querySelector('.dot');
-    dot?.removeAttribute('animation__arm');
+      var dotC = node.querySelector('.dot');
+      var artC = node.querySelector('.art');
+      if (dotC) dotC.removeAttribute('animation__arm');
+      if (artC) artC.removeAttribute('animation__arm_plane');
 
-    this.armed = null;
-    this.hideNode(node, dist);
-  return;
-}
+      this.armed = null;
+      if (this._disarmTimer) { clearTimeout(this._disarmTimer); this._disarmTimer = null; }
+      this.hideNode(node, dist);
+      return;
+    }
 
+    // (Re)arm path
+    // 1) Clear previous pulses
+    if (this.armed && this.armed.node) {
+      var prevDot = this.armed.node.querySelector('.dot');
+      var prevArt = this.armed.node.querySelector('.art');
+      if (prevDot) {
+        prevDot.removeAttribute('animation__arm');
+        var mPrev = prevDot.getAttribute('material') || {};
+        var basePrev = Number(mPrev.emissiveIntensity != null ? mPrev.emissiveIntensity : 0.85);
+        prevDot.setAttribute(
+          'material',
+          'color:#8cf; emissive:#8cf; emissiveIntensity:' + basePrev +
+          '; opacity:' + (mPrev.opacity != null ? mPrev.opacity : 0.9) +
+          '; transparent:true'
+        );
+      }
+      if (prevArt) prevArt.removeAttribute('animation__arm_plane');
+    }
 
-// (Re)arm this node for confirmation
+    // 2) Arm this node
+    this.armed = { node: node, expiresAt: now + this.data.confirmWindow };
 
-// 1) Clear any previous node's pulse (if switching targets quickly)
-if (this.armed?.node) {
-  const prevDot = this.armed.node.querySelector('.dot');
-  prevDot?.removeAttribute('animation__arm');
-  // restore prior glow if it was bumped
-  if (prevDot) {
-    const mPrev = prevDot.getAttribute('material') || {};
-    const basePrev = Number(mPrev.emissiveIntensity ?? 0.85);
-    prevDot.setAttribute(
-      'material',
-      `color:#8cf; emissive:#8cf; emissiveIntensity:${basePrev}; opacity:${mPrev.opacity ?? 0.9}; transparent:true`
-    );
-  }
-}
+    // 3) Pulse dot if visible; else pulse plane
+    var dot = node.querySelector('.dot');
+    var art = node.querySelector('.art');
+    var dotVisible = !!(dot && dot.object3D.visible && dot.getAttribute('visible') !== false);
 
-// 2) Set new armed state
-this.armed = { node, expiresAt: now + this.data.confirmWindow };
+    if (dotVisible) {
+      dot.setAttribute(
+        'animation__arm',
+        'property: scale; to: 1.35 1.35 1.35; dur: 160; dir: alternate; loop: 2; easing: easeInOutSine'
+      );
+      var m = dot.getAttribute('material') || {};
+      var baseEm = Number(m.emissiveIntensity != null ? m.emissiveIntensity : 0.85);
+      dot.setAttribute(
+        'material',
+        'color:#8cf; emissive:#8cf; emissiveIntensity:' + (baseEm + 0.3).toFixed(2) +
+        '; opacity:' + (m.opacity != null ? m.opacity : 0.9) +
+        '; transparent:true'
+      );
+      setTimeout(function () {
+        dot.setAttribute(
+          'material',
+          'color:#8cf; emissive:#8cf; emissiveIntensity:' + baseEm +
+          '; opacity:' + (m.opacity != null ? m.opacity : 0.9) +
+          '; transparent:true'
+        );
+      }, 300);
+    } else if (art) {
+      art.setAttribute(
+        'animation__arm_plane',
+        'property: scale; to: 1.08 1.08 1; dur: 160; dir: alternate; loop: 2; easing: easeInOutSine'
+      );
+    }
 
-// 3) Add a visible pulse (grow/shrink) and a short glow bump
-const dot = node.querySelector('.dot');
-if (dot) {
-  // obvious scale pulse
-  dot.setAttribute(
-    'animation__arm',
-    'property: scale; to: 1.35 1.35 1.35; dur: 160; dir: alternate; loop: 2; easing: easeInOutSine'
-  );
-  // brief glow bump (+0.3) for ~300ms
-  const m = dot.getAttribute('material') || {};
-  const baseEm = Number(m.emissiveIntensity ?? 0.85);
-  dot.setAttribute(
-    'material',
-    `color:#8cf; emissive:#8cf; emissiveIntensity:${(baseEm + 0.3).toFixed(2)}; opacity:${m.opacity ?? 0.9}; transparent:true`
-  );
-  setTimeout(() => {
-    dot.setAttribute(
-      'material',
-      `color:#8cf; emissive:#8cf; emissiveIntensity:${baseEm}; opacity:${m.opacity ?? 0.9}; transparent:true`
-    );
-  }, 300);
-}
-
-// 4) Schedule auto-disarm and remove the pulse if the window expires
-clearTimeout(this._disarmTimer);
-const armedNode = node; // capture for the timer closure
-this._disarmTimer = setTimeout(() => {
-  const d = armedNode?.querySelector?.('.dot');
-  d?.removeAttribute('animation__arm');
-  if (this.armed && this.armed.node === armedNode) this.armed = null;
-}, this.data.confirmWindow + 50);
+    // 4) Auto-disarm and cleanup
+    if (this._disarmTimer) clearTimeout(this._disarmTimer);
+    var self = this;
+    var armedNodeRef = node;
+    this._disarmTimer = setTimeout(function () {
+      var d = armedNodeRef && armedNodeRef.querySelector ? armedNodeRef.querySelector('.dot') : null;
+      var a = armedNodeRef && armedNodeRef.querySelector ? armedNodeRef.querySelector('.art') : null;
+      if (d) d.removeAttribute('animation__arm');
+      if (a) a.removeAttribute('animation__arm_plane');
+      if (self.armed && self.armed.node === armedNodeRef) self.armed = null;
+    }, this.data.confirmWindow + 50);
   }
 });
 
