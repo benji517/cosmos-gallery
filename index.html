@@ -74,23 +74,43 @@
   @supports (scale: 0.95) {
     #ui-rotor { scale: 0.96; }
   }
+  /* --- Recommendations overlay --- */
+  #recsOverlay.ui {
+  width: min(92vmin, 680px);
+  max-width: 92vmin;
+  padding: 18px 20px;
+  }
 
-  /* ---- Recommendation grid inside the rotated UI (#decision card) ---- */
-  #ui-rotor .rec-grid {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-    margin-top: 10px;
-    flex-wrap: nowrap;
+  #recsOverlay h3 {
+  margin: .2rem 0 .6rem;
   }
-  #ui-rotor .rec-thumb {
-    width: 120px;
-    height: 120px;
-    object-fit: cover;
-    border-radius: 10px;
-    box-shadow: 0 8px 22px rgba(0,0,0,.45);
-    opacity: 0.95;
-  }
+
+.recs-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 6px 2px 2px;
+  margin: 8px 0 12px;
+}
+
+.recs-row img {
+  height: 140px;              /* nice size in the rotated plane */
+  border-radius: 8px;
+  opacity: .95;
+  display: block;
+}
+
+#recsCloseBtn {
+  appearance: none;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: rgba(255,255,255,.12);
+  color: #fff;
+  font: inherit;
+}
+#recsCloseBtn:active { transform: scale(0.98); }
 </style>
 </head>
 
@@ -125,7 +145,7 @@
   <h3 style="margin:.2rem 0 .6rem">Decision: What next?</h3>
   <div style="text-align:left; line-height:1.6">
     <div>• <b>Press W</b> — Continue building the cluster</div>
-    <div class="small" style="margin:.4rem 0 .6rem 1.2rem">Suggested pieces (static): rec1.jpg, rec2.jpg, rec3.jpg</div>
+    <div class="small" style="margin:.4rem 0 .6rem 1.2rem">Press<b>W</b> to see suggested pieces</div>
     <div>• <b>Press S</b> — Leave cluster</div>
   </div>
 </div>
@@ -147,6 +167,12 @@
     Wave once to <b>arm</b> an artwork.<br/>
     Wave again to <b>hide</b> it.
   </p>
+</div>
+<!-- ✅ RECOMMENDATIONS OVERLAY (hidden until W at final node) -->
+<div id="recsOverlay" class="ui hidden" aria-hidden="true">
+  <h3>Suggested pieces</h3>
+  <div id="recsRow" class="recs-row"></div>
+  <button id="recsCloseBtn" type="button">I like it.</button>
 </div>
 </div>
 
@@ -197,9 +223,6 @@ function setState(next) {
   uiDecision.classList.toggle('hidden', state !== 'decision');
   const c = document.querySelector('a-scene').canvas;
   if (c) c.focus();
-  // show/hide recommendations when reaching the final node
-  ensureRecPanel();
-  toggleRecPanel(state === 'decision');
 }
 
 window.addEventListener('keydown', (e) => {
@@ -210,10 +233,17 @@ window.addEventListener('keydown', (e) => {
   } else if (state === 'create') {
     if (k === 's') setState('menu');
   } else if (state === 'decision') {
-    if (k === 'w') alert('Recommendations (static stub): rec1.jpg, rec2.jpg, rec3.jpg');
-    if (k === 's') fadeAndReload(); // smoother exit
+  if (k === 'w') {
+    showRecommendations(); // <-- was the alert; now opens the overlay
+    }
+  if (k === 's') {
+    hideRecommendationsAndRestart(); // smoother exit
+    }
   }
 });
+
+document.getElementById('recsCloseBtn')?.addEventListener('click', hideRecommendationsAndRestart);
+
 
 function unlockAudioOnce() {
   if (window.__audioUnlocked) return;
@@ -425,6 +455,15 @@ function assignArtImages() {
     p.setAttribute('render-order', '10');
   });
 }
+
+// Files I have in /assets; first 4 are used on planes, the rest become recommendations
+const ALL_FILES = [
+  "assets/image01.jpeg","assets/image02.jpeg","assets/image03.jpeg","assets/image04.jpeg",
+  "assets/image05.jpeg","assets/image06.jpeg","assets/image07.jpeg","assets/image08.jpeg"
+];
+const USED_ON_PLANES = ALL_FILES.slice(0, 4);
+const REC_FILES = ALL_FILES.slice(4); // show any (or all) that aren't on the planes
+
 
 /* ---------- Reveal-on-approach ---------- */
 AFRAME.registerComponent('art-revealer', {
@@ -745,75 +784,36 @@ function fadeAndReload() {
   setTimeout(() => { location.reload(); }, 2200);
 }
 
-/* ---------- Recommendation gallery using unused art images ---------- */
-/* ---------- Recommendation gallery using unused art images (float + yaw) ---------- */
-function ensureRecPanel() {
-  if (document.getElementById('recPanel')) return; // already built
+function showRecommendations() {
+  const panel = document.getElementById('recsOverlay');
+  const row   = document.getElementById('recsRow');
+  if (!panel || !row) return;
 
-  const cam = document.getElementById('cam');
-  if (!cam) return;
-
-  // Use image05–image08 from the same assets folder
-  const files = [
-    "assets/image05.jpeg",
-    "assets/image06.jpeg",
-    "assets/image07.jpeg",
-    "assets/image08.jpeg"
-  ];
-
-  // Parent panel in front of the camera
-  const panel = document.createElement('a-entity');
-  panel.id = 'recPanel';
-  panel.setAttribute('position', '0 0 -1.6');
-  panel.setAttribute('visible', 'false');
-
-  // Background plane
-  const bg = document.createElement('a-plane');
-  bg.setAttribute('width', '1.8');
-  bg.setAttribute('height', '0.65');
-  bg.setAttribute('material', 'color:#000; opacity:0.35; transparent:true; side:double');
-  bg.setAttribute('position', '0 0 0');
-  panel.appendChild(bg);
-
-  // Title
-  const title = document.createElement('a-entity');
-  title.setAttribute('text', 'value: Suggested pieces; color:#ddd; align:center; width:2.4;');
-  title.setAttribute('position', '0 0.38 0.01');
-  panel.appendChild(title);
-
-  // Thumbnails with float + gentle yaw
-  const spacing = 0.45;
-  const startX = -((files.length - 1) * spacing) / 2;
-  for (let i = 0; i < files.length; i++) {
-    const x = startX + i * spacing;
-    const tile = document.createElement('a-plane');
-    tile.setAttribute('width', '0.4');
-    tile.setAttribute('height', '0.4');
-    tile.setAttribute('position', `${x} 0 0.02`);
-    tile.setAttribute('material', `shader: flat; src: url(${files[i]}); transparent:false; side:double`);
-
-    // soft float (y up/down)
-    tile.setAttribute(
-      'animation__float',
-      `property: position; to: ${x} 0.05 0.02; dir: alternate; dur: ${2200 + i*220}; easing: easeInOutSine; loop: true`
-    );
-
-    // gentle yaw oscillation
-    tile.setAttribute(
-      'animation__yaw',
-      `property: rotation; to: 0 10 0; dir: alternate; dur: ${3800 + i*180}; easing: easeInOutSine; loop: true`
-    );
-
-    panel.appendChild(tile);
+  // Populate once per session
+  if (!row._populated) {
+    row.innerHTML = '';
+    const files = REC_FILES.length ? REC_FILES : USED_ON_PLANES; // fallback to used if needed
+    files.forEach(src => {
+      const img = document.createElement('img');
+      img.src = src;
+      img.alt = 'Suggested piece';
+      row.appendChild(img);
+    });
+    row._populated = true;
   }
 
-  cam.appendChild(panel);
+  panel.classList.remove('hidden');
+  panel.setAttribute('aria-hidden', 'false');
 }
 
-function toggleRecPanel(show) {
-  const panel = document.getElementById('recPanel');
-  if (!panel) return;
-  panel.setAttribute('visible', show ? 'true' : 'false');
+function hideRecommendationsAndRestart() {
+  const panel = document.getElementById('recsOverlay');
+  if (panel) {
+    panel.classList.add('hidden');
+    panel.setAttribute('aria-hidden', 'true');
+  }
+  // reload the scene to "move on"
+  fadeAndReload();
 }
 
 /* ---------- Start ---------- */
