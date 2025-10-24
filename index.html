@@ -34,6 +34,7 @@
   .hidden { display: none; }
 
   /* ---- Audio gate visual tweaks ---- */
+  /* One-time audio unlock gate — darker + elevated */
   #audioGate {
     z-index: 999;
     background: rgba(0,0,0,.86);
@@ -115,7 +116,8 @@
 </head>
 
 <body>
-
+<!-- The rotor contains all HUD-like UI and is rotated on iOS so the
+interface appears upright in mobile VR viewers. On desktop, un-rotate it in JS.-->
 <div id="ui-rotor">
 <!-- MENU UI -->
 <div id="menu" class="ui">
@@ -221,25 +223,33 @@ if (!isIOS) {
   });
 }
 
-/* ---------- STATE ---------- */
+// =====================
+// Global UI State Machine
+// =====================
 let state = 'menu'; // 'menu' | 'create' | 'explore' | 'decision'
 window.state = state; // expose to components that read window.state
 const uiMenu = document.getElementById('menu');
 const uiCreate = document.getElementById('create');
 const uiDecision = document.getElementById('decision');
+// Hide the menu until audio has been unlocked (iOS WebAudio requirement)
 if (!window.__audioUnlocked) uiMenu.classList.add('hidden');
 
 
 function setState(next) {
   state = next;
   window.state = state; // keep global in sync
+  // Cache UI roots for quick toggling
   uiMenu.classList.toggle('hidden', state !== 'menu');
   uiCreate.classList.toggle('hidden', state !== 'create');
   uiDecision.classList.toggle('hidden', state !== 'decision');
+  // Ensure controls respond after switching
   const c = document.querySelector('a-scene').canvas;
   if (c) c.focus();
 }
 
+// =====================
+// Keyboard flow: W/S navigation and decision overlay behavior
+// =====================
 window.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   if (state === 'menu') {
@@ -256,7 +266,7 @@ window.addEventListener('keydown', (e) => {
       // First W → open overlay
       showRecommendations();
     }
-  }
+  }   
   if (k === 's') {
     // S should always be a quick exit (no overlay)
     hideRecommendationsAndRestart(); // uses default "Leaving cluster…"
@@ -266,6 +276,10 @@ window.addEventListener('keydown', (e) => {
 
 document.getElementById('recsCloseBtn')?.addEventListener('click', hideRecommendationsAndRestartWithThanks);
 
+/**
+* unlockAudioOnce(): fires on the first tap/click to prime WebAudio on iOS.
+* Also focuses the canvas so WASD works immediately.
+*/
 function unlockAudioOnce() {
   if (window.__audioUnlocked) return;
 
@@ -305,6 +319,7 @@ const nodesEl = document.getElementById('nodes');
 const pathEl  = document.getElementById('path');
 const finalEl = document.getElementById('finalNode');
 
+// Starfield (IIFE): small emissive spheres in a spherical shell
 (function buildStars(){
   const stars = document.getElementById('stars');
   for (let i=0;i<200;i++){
@@ -328,6 +343,10 @@ const PATH_EMISSIVE = '#6dd';
 const PATH_OPACITY = 0.30;
 const PATH_EMISSIVE_INT = 0.22;
 
+/**
+* buildSCurve(): creates glowing path segments between predefined points.
+* Returns the last control point (used to place the final node).
+*/
 function buildSCurve() {
   const pts = [
     {x:-4, y:0, z:6},
